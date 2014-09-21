@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+
+
+mkdir "${1}"
+cd "${1}"
+# git init # TODO add a command line flag
+# to include git init
+
+# set up rspec TDD
+rspec --init
+echo -e "--color\n--format documentation\n--require spec_helper\n" > .rspec
+
+# creates my readme file
+echo "# ${1}"_app > readme.md
+
+# build db
+mkdir db
+touch db/schema.sql
+touch db/seeds.rb
+
+# makes models
+mkdir models
+
+# makes Application Controller
+cat << EOF > application_controller.rb
+require 'sinatra/base'
+
+class ApplicationController < Sinatra::Base
+
+########################
+# Configuration
+########################
+
+configure do
+  enable :logging
+  enable :method_override
+  enable :sessions
+end
+
+before do
+  logger.info "Request Headers: #{headers}"
+  logger.warn "Params: #{params}"
+end
+
+after do
+  logger.info "Response Headers: #{response.headers}"
+end
+end
+EOF
+
+# make's Application Helpers
+mkdir helpers
+touch helpers/helper_application.rb
+
+
+# build assets template
+mkdir public
+mkdir public/images
+mkdir public/stylesheets
+touch public/stylesheets/reset.css
+curl -o public/stylesheets/reset.css http://meyerweb.com/eric/tools/css/reset/reset.css
+touch public/stylesheets/style.css
+
+
+mkdir views
+mkdir views/"${1}s"
+touch views/"${1}s"/index.erb
+touch views/"${1}s"/new.erb
+touch views/"${1}s"/edit.erb
+touch views/"${1}s"/show.erb
+# touch views/index.erb
+echo "<img src='https://pbs.twimg.com/profile_images/464460229300600832/esZd6eQp.jpeg'/>" > views/index.erb
+
+cat << EOF > views/layout.erb
+<html>
+  <head>
+    <meta charset="utf-8">
+
+    <title>$1</title>
+
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link href="/stylesheets/reset.css" rel="stylesheet" type="text/css" media="all">
+    <link href="/stylesheets/style.css" rel="stylesheet" type="text/css" media="all">
+  </head>
+
+  <body>
+    <%= yield %>
+  </body>
+</html>
+EOF
+
+# bundle install
+# config.ru
+# set rack
+cat << EOF > config.ru
+require './app'
+
+run App
+EOF
+# Gemfile ~ bundle install
+# A sample Gemfile
+# FIXME ensure that ruby version is taken from env vars
+
+cat << EOF > Gemfile
+source "https://rubygems.org"
+
+ruby "2.1.2"
+
+gem 'sinatra', '1.4.5'
+gem 'redis',  '3.1.0'
+gem 'sequel'
+gem 'pg'
+gem 'httparty'
+
+
+# only used in development locally
+group :development do
+  gem 'pry'
+  gem 'shotgun'
+end
+
+group :production do
+  # gems specific just in the production environment
+end
+
+group :test do
+  gem 'rspec'
+end
+EOF
+
+# bundle install
+ bundle install
+# app.rb
+# write a default app file
+cat << EOF > app.rb
+require './application_controller'
+
+class App < ApplicationController
+  ########################
+  # Routes
+  ########################
+
+  get('/') do
+    render(:erb, :index)
+  end
+
+end # ends class
+EOF
+
+# start it up
+
+atom -n
+bundle exec rackup -p 3000
