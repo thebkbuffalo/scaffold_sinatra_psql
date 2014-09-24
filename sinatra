@@ -23,6 +23,7 @@ def make_project(project_name)
       public/stylesheets
       views
       db
+      db/migrations
       controllers
       helpers
       config
@@ -228,7 +229,7 @@ APP
 
     # Rakefile
     File.open('Rakefile', 'w+') do |f|
-      f.write <<RAKE
+      f.write <<'RAKE'
 # A method to get the name of our project from the root directory
 # Rakefiles are just ruby so we can write methods in here too!
 def project_name
@@ -321,7 +322,8 @@ namespace :db do
   end
 end
 RAKE
-  end
+    end
+
     system('bundle install')
     puts('>> OK!'.white)
     puts(">> Created #{project_name}!".green)
