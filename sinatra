@@ -232,18 +232,20 @@ APP
   end
 end
 
-if cmd == 'new'
+if cmd == 'new' || cmd == 'n'
   make_project(project_name)
-elsif cmd == 'server'
+elsif cmd == 'server' || cmd == 's'
   system('bundle exec rackup -p 3000')
-elsif cmd == 'console'
+elsif cmd == 'console' || cmd == 'c'
   require 'rubygems'
   require 'bundler'
   Bundler.require(:default, ENV['RACK_ENV'] || 'development')
-  require 'rack-flash'
   require './config/boot'
   puts 'Starting console...'
   Pry.start
 else
-  puts "don't know that command"
+  puts "Possible Commands"
+  puts "  sinatra n[ew] APP_NAME # Create a new sinatra app"
+  puts "  sinatra s[server]      # start a server on port 3000"
+  puts "  sinatra c[console]     # start a pry session in the sinatra environment"
 end
