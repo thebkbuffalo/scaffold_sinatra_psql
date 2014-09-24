@@ -24,6 +24,9 @@ mkdir models
 # makes Application Controller
 cat << EOF > application_controller.rb
 require 'sinatra/base'
+require 'pry'
+require 'sequel'
+require 'pg'
 
 class ApplicationController < Sinatra::Base
 
