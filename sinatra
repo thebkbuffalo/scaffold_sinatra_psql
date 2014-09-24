@@ -63,13 +63,16 @@ RSPEC
     File.open('spec/spec_helper.rb', 'w+') do |f|
       f.write <<SPEC_HELPER
 ENV['RACK_ENV'] = 'test'
+require 'rubygems'
+require 'bundler'
+Bundler.require(:default, ENV['RACK_ENV'])
+require './config/boot'
 
-require 'rspec'
-require 'capybara/rspec'
-# this may need to change...
-require './app'
-Capybara.app = App
-
+# For multiple routes
+config_routes = File.expand_path('../../config.ru', __FILE__)
+Capybara.app = Rack::Builder.parse_file(config_routes).first
+# # For single App
+# Capybara.app = App
 RSpec.configure do |config|
   config.include Capybara::DSL
 end
@@ -218,7 +221,6 @@ APP
   end
 end
 
-
 if cmd == 'new'
   make_project(project_name)
 elsif cmd == 'server'
@@ -230,9 +232,6 @@ elsif cmd == 'console'
   require 'rack-flash'
   require './config/boot'
   puts 'Starting console...'
-  # how to get working based on blogpost
-  # ARGV.delete('console')
-  # Pry::CLI.parse_options
   Pry.start
 else
   puts "don't know that command"
