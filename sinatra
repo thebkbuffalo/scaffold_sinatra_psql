@@ -79,6 +79,17 @@ end
 SPEC_HELPER
   end
 
+  File.open('spec/root_spec.rb', 'w+') do |f|
+    f.write <<SAMPLE_SPEC
+describe("the root") do
+  it "says Hello from Index!" do
+    visit("/")
+    expect(page).to have_content("Hello from Index!")
+  end
+end
+SAMPLE_SPEC
+    end
+
     # styles
     # FileUtils.touch
     touch("public/stylesheets/style.css")
@@ -217,7 +228,7 @@ APP
     system('bundle install')
     puts('>> OK!'.white)
     puts(">> Created #{project_name}!".green)
-    puts('>> use `bundle exec rackup -p 3000` from inside the folder to run it!')
+    puts('>> use `sinatra server` from inside the folder to run it!')
   end
 end
 
