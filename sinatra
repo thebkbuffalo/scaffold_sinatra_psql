@@ -1,0 +1,350 @@
+#!/usr/bin/env ruby
+require 'pry'
+require 'fileutils'
+require 'open-uri'
+require 'colorize'
+
+include FileUtils
+
+cmd = ARGV[0]
+project_name = ARGV[1]
+
+def make_project(project_name)
+  # make app repo
+  mkdir(project_name)
+
+  # and do all the work there...
+  cd(project_name) do
+
+    # assets
+    folders = %w(
+      public
+      public/images
+      public/stylesheets
+      views
+      db
+      db/migrations
+      controllers
+      helpers
+      config
+      models
+      spec
+    )
+
+    makedirs(folders)
+
+    File.open('db/seeds.rb', 'w+') do |f|
+      f.write <<SEEDS
+require 'sequel'
+DB = Sequel.connect("postgres://localhost/#{project_name}_development")
+SEEDS
+    end
+
+    touch 'db/schema.sql'
+
+    File.open('helpers/application_helper.rb', 'w+') do |f|
+      f.write <<APPLICATION_HELPER
+module ApplicationHelper
+  def link_to(title, path)
+    '<a href="' + path + '">' + title + '</a>'
+  end
+end
+APPLICATION_HELPER
+    end
+    # .rspec
+    File.open('.rspec', 'w+') do |f|
+      f.write <<RSPEC
+--color
+--format documentation
+--require spec_helper
+RSPEC
+    end
+
+    # spec_helper.rb
+    File.open('spec/spec_helper.rb', 'w+') do |f|
+      f.write <<SPEC_HELPER
+ENV['RACK_ENV'] = 'test'
+require 'rubygems'
+require 'bundler'
+Bundler.require(:default, ENV['RACK_ENV'])
+require './config/boot'
+
+# For multiple routes
+config_routes = File.expand_path('../../config.ru', __FILE__)
+Capybara.app = Rack::Builder.parse_file(config_routes).first
+# # For single App
+# Capybara.app = App
+RSpec.configure do |config|
+  config.include Capybara::DSL
+end
+SPEC_HELPER
+  end
+
+  File.open('spec/root_spec.rb', 'w+') do |f|
+    f.write <<SAMPLE_SPEC
+describe("the root") do
+  it "says Hello from Index!" do
+    visit("/")
+    expect(page).to have_content("Hello from Index!")
+  end
+end
+SAMPLE_SPEC
+    end
+
+    # styles
+    # FileUtils.touch
+    touch("public/stylesheets/style.css")
+
+    File.open('public/stylesheets/normalize.css', 'w+') do |f|
+      normalize_url = 'https://raw.githubusercontent.com/necolas/normalize.css/master/normalize.css'
+      f.write(open(normalize_url).read)
+    end
+
+    # views
+    File.open('views/layout.erb', 'w+') do |f|
+      f.write <<HTML
+<!doctype html>
+
+<html>
+  <head>
+    <meta charset="utf-8">
+
+    <title>#{project_name}</title>
+
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link href="/stylesheets/normalize.css" rel="stylesheet" type="text/css" media="all">
+    <link href="/stylesheets/style.css" rel="stylesheet" type="text/css" media="all">
+  </head>
+
+  <body>
+    <h1>Hello from Layout.erb!</h1>
+    <%= yield %>
+  </body>
+</html>
+HTML
+    end
+
+    # Index.erb
+    File.open('views/index.erb', 'w+') do |f|
+    f.write <<INDEX
+<h1>Hello from Index!</h1>
+INDEX
+    end
+
+    # Gemfile
+    File.open('Gemfile', 'w+') do |f|
+      f.write <<GEMFILE
+source 'https://rubygems.org'
+
+ruby "#{RUBY_VERSION}"
+
+# Gems used in every environment
+gem 'sinatra',  '1.4.5', require: 'sinatra/base'
+gem 'redis',    '3.1.0'
+gem 'httparty', '0.13.1'
+gem 'sequel',   '~> 4.14.0'
+gem 'pg',       '~> 0.17.1'
+
+# only used in development locally
+group :development, :test do
+  gem 'pry',     '0.10.1'
+  gem 'sinatra-contrib'
+end
+
+# gems specific just in the production environment
+group :production do
+end
+
+group :test do
+  gem 'rspec',    '~> 3.0.0'
+  gem 'capybara', '~> 2.4.1'
+end
+GEMFILE
+    end
+
+    # default app!
+    File.open('controllers/application_controller.rb', 'w+') do |f|
+      f.write <<APPLICATION_CONTROLLER
+class ApplicationController < Sinatra::Base
+
+  ########################
+  # Configuration
+  ########################
+  set :app_file,  File.expand_path(File.dirname(__FILE__), '../')
+
+  helpers ApplicationHelper
+  # allow put/delete forms in browsers that don't support it.
+  enable :method_override
+  # store data between HTTP requests in a cookie
+  enable :sessions
+  # session_secret will change with every start of the application
+  # if we want to run shotgun, which creates new application instances
+  # we must manually set session_secret
+  set :session_secret, 'super secret'
+
+  configure :test, :development do
+    require 'sinatra/reloader'
+    register Sinatra::Reloader
+  end
+
+end
+APPLICATION_CONTROLLER
+    end
+
+    # config.ru
+    File.open('config.ru', 'w+') do |f|
+      f.write <<CONFIG
+require 'rubygems'
+require 'bundler'
+Bundler.require(:default, ENV['RACK_ENV'] || 'development')
+
+require './config/boot'
+
+map('/') { run RootController }
+CONFIG
+    end
+
+    File.open('config/boot.rb', 'w+') do |f|
+      f.write <<BOOT_FILE
+DB = Sequel.connect("postgres://localhost:5432/#{project_name}_development")
+Dir['./helpers/*.rb'].each { |helper| require helper }
+Dir['./models/*.rb'].each { |model| require model }
+require './controllers/application_controller'
+Dir['./controllers/*.rb'].each { |controller| require controller }
+BOOT_FILE
+    end
+
+    # root_controller.rb
+    File.open('controllers/root_controller.rb', 'w+') do |f|
+      f.write <<APP
+class RootController < ApplicationController
+  get('/') do
+    render(:erb, :index)
+  end
+end
+APP
+  end
+
+    # Rakefile
+    File.open('Rakefile', 'w+') do |f|
+      f.write <<'RAKE'
+# A method to get the name of our project from the root directory
+# Rakefiles are just ruby so we can write methods in here too!
+def project_name
+  # __dir__ Returns the canonicalized absolute path of the directory of the
+  # file from which this method is called.
+  # evivalent to File.dirname(File.realpath(__FILE__)).
+  File.basename(__dir__)
+end
+
+namespace :bundler do
+  task :setup do
+    require 'rubygems'
+    require 'bundler'
+  end
+end
+
+# $ rake environment
+# $ rake environment[test]
+# $ rake environment[production]
+task :environment, [:env] => 'bundler:setup' do |cmd, args|
+  env = args[:env] || ENV["RACK_ENV"] || "development"
+  Bundler.require(:default, env)
+  require "./config/boot"
+end
+
+namespace :db do
+
+  # ENV["RACK_ENV"] is set to production on heroku
+  # to invoke the task in a specific environment
+  # we can run the task in two ways:
+  #   $ rake db:setup[test]
+  #   $ rake db:setup RACK_ENV=test
+  desc "creates db, applies migrations, seeds db"
+  task :setup, [:env] do |cmd, args|
+    env = args[:env] || ENV["RACK_ENV"] || "development"
+    Rake::Task['db:create'].invoke(env)
+    Rake::Task['db:migrate'].invoke(env)
+    Rake::Task['db:seed'].invoke(env)
+  end
+
+  desc "Rollback the database"
+  task :rollback, :env do |cmd, args|
+    puts "reversing migration"
+    env = args[:env] || ENV["RACK_ENV"] || "development"
+    Rake::Task['environment'].invoke(env)
+    require 'sequel/extensions/migration'
+    version = (row = DB[:schema_info].first) ? row[:version] : nil
+    Sequel::Migrator.apply(DB, "db/migrations", version - 1)
+  end
+
+  desc "creates a db"
+  task :create, [:env] do |cmd, args|
+    env = args[:env] || ENV["RACK_ENV"] || "development"
+    sh("createdb #{project_name}_#{env}")
+  end
+
+  desc "drop db"
+  task :drop, [:env] do |cmd, args|
+    puts "Dropping db"
+    env = args[:env] || ENV["RACK_ENV"] || "development"
+    sh("dropdb #{project_name}_#{env}")
+  end
+
+  desc "Run database migrations"
+  task :migrate, :env do |cmd, args|
+    puts "Running migrations"
+    env = args[:env] || ENV["RACK_ENV"] || "development"
+    Rake::Task['environment'].invoke(env)
+    require 'sequel/extensions/migration'
+    # apply database, migration_folder
+    # runs all migration files in db/migrations
+    # generated first schema with
+    # sequel postgres://localhost/dvr_app_development -d
+    Sequel::Migrator.apply(DB, "db/migrations")
+  end
+
+  desc "seed db"
+  # $ rake db:seed
+  # $ rake db:seed[test]
+  # $ rake db:seed[production]
+  task :seed, [:env] do |cmd, args|
+    # default environment
+    puts "seeding db"
+    env = args[:env] || ENV["RACK_ENV"] || "development"
+    # load up my sinatra environment
+    # then populate my database
+    # calls rake environment[env]
+    Rake::Task['environment'].invoke(env)
+    require './db/seeds'
+  end
+end
+RAKE
+    end
+
+    system('bundle install')
+    puts('>> OK!'.white)
+    puts(">> Created #{project_name}!".green)
+    puts('>> use `sinatra server` from inside the folder to run it!')
+  end
+end
+
+if cmd == 'new' || cmd == 'n'
+  make_project(project_name)
+elsif cmd == 'server' || cmd == 's'
+  system('bundle exec rackup -p 3000')
+elsif cmd == 'console' || cmd == 'c'
+  require 'rubygems'
+  require 'bundler'
+  Bundler.require(:default, ENV['RACK_ENV'] || 'development')
+  require './config/boot'
+  puts 'Starting console...'
+  Pry.start
+else
+  puts "Possible Commands"
+  puts "  sinatra n[ew] APP_NAME # Create a new sinatra app"
+  puts "  sinatra s[server]      # start a server on port 3000"
+  puts "  sinatra c[console]     # start a pry session in the sinatra environment"
+end
